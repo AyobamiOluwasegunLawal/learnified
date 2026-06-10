@@ -139,3 +139,5 @@ export interface EndSessionResult {
     success: boolean;
     error?: string;
 }
+
+declare module "pdfjs-dist";

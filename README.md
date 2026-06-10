@@ -173,3 +173,10 @@ detailed explanations, cool features, and exercises to boost your skills. Give i
 <a href="https://jsm.dev/books-jsm" target="_blank">
   <img src="public/readme/readme-jsmpro.webp" alt="Project Banner">
 </a>
+
+<!-- MONGODB_URI
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+CLERK_SECRET_KEY
+NEXT_PUBLIC_ASSISTANT_ID
+NEXT_PUBLIC_VAPI_API_KEY
+bookified_READ_WRITE_TOKEN -->
