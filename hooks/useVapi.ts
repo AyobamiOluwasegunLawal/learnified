@@ -92,6 +92,14 @@ export function useVapi(book: IBook) {
                     }
                 }, TIMER_INTERVAL_MS);
             },
+            'call-start-progress': (event: any) => {
+                console.debug('Vapi call-start-progress:', event);
+            },
+            'call-start-failed': (event: any) => {
+                console.error('Vapi call-start-failed:', event);
+                setStatus('idle');
+                setLimitError('Failed to start the voice session. Please check your microphone and network settings.');
+            },
 
             'call-end': () => {
                 // Don't reset isStoppingRef here - delayed events may still fire
@@ -191,12 +199,15 @@ export function useVapi(book: IBook) {
                     sessionIdRef.current = null;
                 }
 
-                // Show user-friendly error message
-                const errorMessage = error.message?.toLowerCase() || '';
-                if (errorMessage.includes('timeout') || errorMessage.includes('silence')) {
+                const errorMessage = String(error.message || '').toLowerCase();
+                if (errorMessage.includes('permission') || errorMessage.includes('notallowederror')) {
+                    setLimitError('Microphone access is blocked. Please allow microphone permission and try again.');
+                } else if (errorMessage.includes('timeout') || errorMessage.includes('silence')) {
                     setLimitError('Session ended due to inactivity. Click the mic to start again.');
                 } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
                     setLimitError('Connection lost. Please check your internet and try again.');
+                } else if (errorMessage.includes('assistant') || errorMessage.includes('workflow')) {
+                    setLimitError('Voice assistant failed to respond. Please try again or contact support.');
                 } else {
                     setLimitError('Session ended unexpectedly. Click the mic to start again.');
                 }
@@ -254,23 +265,49 @@ export function useVapi(book: IBook) {
 
             const firstMessage = `Hey, good to meet you. Quick question before we dive in - have you actually read ${book.title} yet, or are we starting fresh?`;
 
+            // await getVapi().start(ASSISTANT_ID, {
+            //     firstMessage,
+            //     variableValues: {
+            //         title: book.title,
+            //         author: book.author,
+            //         bookId: book._id,
+            //     },
+            //     voice: {
+            //         provider: '11labs' as const,
+            //         voiceId: getVoice(voice).id,
+            //         model: 'eleven_turbo_v2_5' as const,
+            //         stability: VOICE_SETTINGS.stability,
+            //         similarityBoost: VOICE_SETTINGS.similarityBoost,
+            //         style: VOICE_SETTINGS.style,
+            //         useSpeakerBoost: VOICE_SETTINGS.useSpeakerBoost,
+            //     },
+            // });
+
             await getVapi().start(ASSISTANT_ID, {
-                firstMessage,
-                variableValues: {
-                    title: book.title,
-                    author: book.author,
-                    bookId: book._id,
-                },
-                voice: {
-                    provider: '11labs' as const,
-                    voiceId: getVoice(voice).id,
-                    model: 'eleven_turbo_v2_5' as const,
-                    stability: VOICE_SETTINGS.stability,
-                    similarityBoost: VOICE_SETTINGS.similarityBoost,
-                    style: VOICE_SETTINGS.style,
-                    useSpeakerBoost: VOICE_SETTINGS.useSpeakerBoost,
-                },
-            });
+    firstMessage,
+    backgroundSpeechDenoisingPlan: {
+        smartDenoisingPlan: {
+            enabled: false,
+        },
+        fourierDenoisingPlan: {
+            enabled: false,
+        },
+    },
+    variableValues: {
+        title: book.title,
+        author: book.author,
+        bookId: book._id,
+    },
+    voice: {
+        provider: '11labs' as const,
+        voiceId: getVoice(voice).id,
+        model: 'eleven_turbo_v2_5' as const,
+        stability: VOICE_SETTINGS.stability,
+        similarityBoost: VOICE_SETTINGS.similarityBoost,
+        style: VOICE_SETTINGS.style,
+        useSpeakerBoost: VOICE_SETTINGS.useSpeakerBoost,
+    },
+});
         } catch (err) {
             console.error('Failed to start call:', err);
             setStatus('idle');

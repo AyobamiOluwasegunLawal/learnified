@@ -2,11 +2,37 @@ import { NextResponse } from 'next/server';
 
 import { searchBookSegments } from '@/lib/actions/book.actions';
 
+type ToolCallResult = {
+    name: string;
+    toolCallId: string;
+    result?: string;
+    error?: string;
+};
+
+type VapiToolCallLike = {
+    id?: string;
+    toolCallId?: string;
+    name?: string;
+    arguments?: unknown;
+    parameters?: unknown;
+    function?: {
+        name?: string;
+        arguments?: unknown;
+    };
+    tool?: {
+        function?: {
+            name?: string;
+            arguments?: unknown;
+        };
+    };
+    toolCall?: VapiToolCallLike;
+};
+
 // Helper function to process book search logic
-async function processBookSearch(bookId: unknown, query: unknown) {
+async function processBookSearch(bookId: unknown, query: unknown): Promise<{ result?: string; error?: string }> {
     // Validate inputs before conversion to prevent null/undefined becoming "null"/"undefined" strings
     if (bookId == null || query == null || query === '') {
-        return { result: 'Missing bookId or query' };
+        return { error: 'Missing bookId or query' };
     }
 
     // Convert bookId to string
@@ -15,7 +41,7 @@ async function processBookSearch(bookId: unknown, query: unknown) {
 
     // Additional validation after conversion
     if (!bookIdStr || bookIdStr === 'null' || bookIdStr === 'undefined' || !queryStr) {
-        return { result: 'Missing bookId or query' };
+        return { error: 'Missing bookId or query' };
     }
 
     // Execute search
@@ -46,6 +72,45 @@ function parseArgs(args: unknown): Record<string, unknown> {
     return args as Record<string, unknown>;
 }
 
+function normalizeToolCall(toolCall: VapiToolCallLike): VapiToolCallLike {
+    return toolCall.toolCall || toolCall;
+}
+
+function getToolCallName(toolCall: VapiToolCallLike): string {
+    const normalized = normalizeToolCall(toolCall);
+
+    return normalized.function?.name || normalized.name || normalized.tool?.function?.name || '';
+}
+
+function getToolCallArgs(toolCall: VapiToolCallLike): Record<string, unknown> {
+    const normalized = normalizeToolCall(toolCall);
+
+    return parseArgs(
+        normalized.function?.arguments ||
+        normalized.arguments ||
+        normalized.parameters ||
+        normalized.tool?.function?.arguments,
+    );
+}
+
+function getToolCallId(toolCall: VapiToolCallLike): string {
+    const normalized = normalizeToolCall(toolCall);
+
+    return normalized.id || normalized.toolCallId || 'unknown-tool-call';
+}
+
+function buildToolResult(
+    toolCallId: string,
+    name: string,
+    output: { result?: string; error?: string },
+): ToolCallResult {
+    return {
+        toolCallId,
+        name,
+        ...(output.error ? { error: output.error } : { result: output.result || '' }),
+    };
+}
+
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -54,7 +119,10 @@ export async function POST(request: Request) {
 
         // Support multiple Vapi formats
         const functionCall = body?.message?.functionCall;
-        const toolCallList = body?.message?.toolCallList || body?.message?.toolCalls;
+        const toolCallList =
+            body?.message?.toolCallList ||
+            body?.message?.toolCalls ||
+            body?.message?.toolWithToolCallList;
 
         // Handle single functionCall format
         if (functionCall) {
@@ -63,31 +131,40 @@ export async function POST(request: Request) {
 
             if (name === 'searchBook') {
                 const result = await processBookSearch(parsed.bookId, parsed.query);
-                return NextResponse.json(result);
+                return NextResponse.json({
+                    ...result,
+                    results: [buildToolResult(functionCall.id || 'function-call', name, result)],
+                });
             }
 
-            return NextResponse.json({ result: `Unknown function: ${name}` });
+            return NextResponse.json({
+                results: [buildToolResult(functionCall.id || 'function-call', name || 'unknown', {
+                    error: `Unknown function: ${name}`,
+                })],
+            });
         }
 
         // Handle toolCallList format (array of calls)
         if (!toolCallList || toolCallList.length === 0) {
             return NextResponse.json({
-                results: [{ result: 'No tool calls found' }],
+                error: 'No tool calls found',
             });
         }
 
-        const results = [];
+        const results: ToolCallResult[] = [];
 
         for (const toolCall of toolCallList) {
-            const { id, function: func } = toolCall;
-            const name = func?.name;
-            const args = parseArgs(func?.arguments);
+            const name = getToolCallName(toolCall);
+            const args = getToolCallArgs(toolCall);
+            const toolCallId = getToolCallId(toolCall);
 
             if (name === 'searchBook') {
                 const searchResult = await processBookSearch(args.bookId, args.query);
-                results.push({ toolCallId: id, ...searchResult });
+                results.push(buildToolResult(toolCallId, name, searchResult));
             } else {
-                results.push({ toolCallId: id, result: `Unknown function: ${name}` });
+                results.push(buildToolResult(toolCallId, name || 'unknown', {
+                    error: `Unknown function: ${name}`,
+                }));
             }
         }
 
@@ -95,7 +172,7 @@ export async function POST(request: Request) {
     } catch (error) {
         console.error('Vapi search-book error:', error);
         return NextResponse.json({
-            results: [{ result: 'Error processing request' }],
+            error: 'Error processing request',
         });
     }
 }

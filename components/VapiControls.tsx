@@ -18,8 +18,6 @@ const VapiControls = ({ book }: { book: IBook }) => {
         if (limitError) {
             toast.error(limitError);
             if (isBillingError) {
-                router.push("/subscriptions");
-            } else {
                 router.push("/");
             }
             clearError();
