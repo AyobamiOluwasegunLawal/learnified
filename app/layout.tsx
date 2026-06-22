@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Serif, Mona_Sans} from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 import Navbar from "@/components/Navbar";
 import "./globals.css";
@@ -40,6 +41,7 @@ export default function RootLayout({
             <Navbar />
             {children}
             <Toaster />
+            <SpeedInsights />
           </body>
         </html>
         </Analytics>
