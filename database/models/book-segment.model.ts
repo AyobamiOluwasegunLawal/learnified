@@ -1,4 +1,4 @@
-import { model, Schema, models, Types } from "mongoose";
+import { model, Schema, models } from "mongoose";
 import { IBookSegment } from "@/types";
 
 const BookSegmentSchema = new Schema<IBookSegment>({
@@ -10,10 +10,10 @@ const BookSegmentSchema = new Schema<IBookSegment>({
     wordCount: { type: Number, required: true },
 }, { timestamps: true });
 
-BookSegmentSchema.index({ bookId: 1, segmentIndex: 1 }, { unique: true });
-BookSegmentSchema.index({ bookId: 1, pageNumber: 1 });
+BookSegmentSchema.index({ clerkId: 1, bookId: 1, segmentIndex: 1 }, { unique: true });
+BookSegmentSchema.index({ clerkId: 1, bookId: 1, pageNumber: 1 });
 
-BookSegmentSchema.index({ bookId: 1, content: 'text' });
+BookSegmentSchema.index({ clerkId: 1, bookId: 1, content: 'text' });
 
 const BookSegment = models.BookSegment || model<IBookSegment>('BookSegment', BookSegmentSchema);
 

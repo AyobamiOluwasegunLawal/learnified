@@ -15,6 +15,9 @@ const BookSchema = new Schema<IBook>({
     totalSegments: { type: Number, default: 0 },
 }, { timestamps: true });
 
+BookSchema.index({ clerkId: 1, createdAt: -1 });
+BookSchema.index({ clerkId: 1, slug: 1 });
+
 const Book = models.Book || model<IBook>('Book', BookSchema);
 
 export default Book;

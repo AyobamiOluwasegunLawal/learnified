@@ -29,23 +29,36 @@ type VapiToolCallLike = {
 };
 
 // Helper function to process book search logic
-async function processBookSearch(bookId: unknown, query: unknown): Promise<{ result?: string; error?: string }> {
+async function processBookSearch(
+    bookId: unknown,
+    query: unknown,
+    ownerId?: unknown,
+): Promise<{ result?: string; error?: string }> {
     // Validate inputs before conversion to prevent null/undefined becoming "null"/"undefined" strings
-    if (bookId == null || query == null || query === '') {
+    if (bookId == null || query == null || query === '' || ownerId == null || ownerId === '') {
         return { error: 'Missing bookId or query' };
     }
 
     // Convert bookId to string
     const bookIdStr = String(bookId);
     const queryStr = String(query).trim();
+    const ownerIdStr = String(ownerId).trim();
 
     // Additional validation after conversion
-    if (!bookIdStr || bookIdStr === 'null' || bookIdStr === 'undefined' || !queryStr) {
+    if (
+        !bookIdStr ||
+        bookIdStr === 'null' ||
+        bookIdStr === 'undefined' ||
+        !queryStr ||
+        !ownerIdStr ||
+        ownerIdStr === 'null' ||
+        ownerIdStr === 'undefined'
+    ) {
         return { error: 'Missing bookId or query' };
     }
 
     // Execute search
-    const searchResult = await searchBookSegments(bookIdStr, queryStr, 3);
+    const searchResult = await searchBookSegments(bookIdStr, queryStr, 3, ownerIdStr);
 
     // Return results
     if (!searchResult.success || !searchResult.data?.length) {
@@ -70,6 +83,28 @@ function parseArgs(args: unknown): Record<string, unknown> {
         try { return JSON.parse(args); } catch { return {}; }
     }
     return args as Record<string, unknown>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+function getOwnerId(args: Record<string, unknown>, body: Record<string, unknown>): unknown {
+    const message = asRecord(body.message);
+    const assistant = asRecord(message?.assistant);
+    const variableValues = asRecord(assistant?.variableValues);
+
+    return (
+        args.clerkId ||
+        args.userId ||
+        args.ownerId ||
+        message?.clerkId ||
+        message?.userId ||
+        variableValues?.clerkId ||
+        variableValues?.userId ||
+        body.clerkId ||
+        body.userId
+    );
 }
 
 function normalizeToolCall(toolCall: VapiToolCallLike): VapiToolCallLike {
@@ -130,7 +165,7 @@ export async function POST(request: Request) {
             const parsed = parseArgs(parameters);
 
             if (name === 'searchBook') {
-                const result = await processBookSearch(parsed.bookId, parsed.query);
+                const result = await processBookSearch(parsed.bookId, parsed.query, getOwnerId(parsed, body));
                 return NextResponse.json({
                     ...result,
                     results: [buildToolResult(functionCall.id || 'function-call', name, result)],
@@ -159,7 +194,7 @@ export async function POST(request: Request) {
             const toolCallId = getToolCallId(toolCall);
 
             if (name === 'searchBook') {
-                const searchResult = await processBookSearch(args.bookId, args.query);
+                const searchResult = await processBookSearch(args.bookId, args.query, getOwnerId(args, body));
                 results.push(buildToolResult(toolCallId, name, searchResult));
             } else {
                 results.push(buildToolResult(toolCallId, name || 'unknown', {

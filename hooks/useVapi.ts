@@ -297,6 +297,7 @@ export function useVapi(book: IBook) {
         title: book.title,
         author: book.author,
         bookId: book._id,
+        clerkId: userId,
     },
     voice: {
         provider: '11labs' as const,
